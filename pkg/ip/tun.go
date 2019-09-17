@@ -45,6 +45,8 @@ func fromZeroTerm(s []byte) string {
 	return string(bytes.TrimRight(s, "\000"))
 }
 
+// OpenTun 手动创建tun设备
+// 先创建一个普通文件, 
 func OpenTun(name string) (*os.File, string, error) {
 	tun, err := os.OpenFile(tunDevice, os.O_RDWR, 0)
 	if err != nil {
@@ -52,12 +54,13 @@ func OpenTun(name string) (*os.File, string, error) {
 	}
 
 	var ifr ifreqFlags
+	// copy(dst, src []Type) int
 	copy(ifr.IfrnName[:len(ifr.IfrnName)-1], []byte(name+"\000"))
 	ifr.IfruFlags = syscall.IFF_TUN | syscall.IFF_NO_PI
 
-	err = ioctl(int(tun.Fd()), syscall.TUNSETIFF, uintptr(unsafe.Pointer(&ifr)))
-	if err != nil {
-		return nil, "", err
+	_, _, errno := syscall.Syscall(syscall.SYS_IOCTL, tun.Fd(), syscall.TUNSETIFF, uintptr(unsafe.Pointer(&ifr)))
+	if errno != 0 {
+		return nil, "", fmt.Errorf("ioctl failed with '%s'", errno)
 	}
 
 	ifname := fromZeroTerm(ifr.IfrnName[:ifnameSize])

@@ -70,7 +70,7 @@ func newNetwork(sm subnet.Manager, extIface *backend.ExternalInterface, port int
 	if err != nil {
 		return nil, fmt.Errorf("failed to start listening on UDP socket: %v", err)
 	}
-
+	// 可双向通信的socket对
 	n.ctl, n.ctl2, err = newCtlSockets()
 	if err != nil {
 		return nil, fmt.Errorf("failed to create control socket: %v", err)

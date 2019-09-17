@@ -26,6 +26,7 @@ import (
 	"github.com/vishvananda/netlink"
 )
 
+// getIfaceAddrs 获取iface接口的IP列表, 注意返回值类型为netlink
 func getIfaceAddrs(iface *net.Interface) ([]netlink.Addr, error) {
 	link := &netlink.Device{
 		netlink.LinkAttrs{
@@ -67,6 +68,7 @@ func GetIfaceIP4Addr(iface *net.Interface) (net.IP, error) {
 	return nil, errors.New("No IPv4 address found for given interface")
 }
 
+// GetIfaceIP4AddrMatch 判断目标接口iface上是否存在IP地址matchAddr, 如果是则返回err为nil.
 func GetIfaceIP4AddrMatch(iface *net.Interface, matchAddr net.IP) error {
 	addrs, err := getIfaceAddrs(iface)
 	if err != nil {
@@ -104,6 +106,7 @@ func GetDefaultGatewayIface() (*net.Interface, error) {
 	return nil, errors.New("Unable to find default route")
 }
 
+// GetInterfaceByIP 根据给定的IP对象返回其所属的eth接口对象
 func GetInterfaceByIP(ip net.IP) (*net.Interface, error) {
 	ifaces, err := net.Interfaces()
 	if err != nil {

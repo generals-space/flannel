@@ -45,6 +45,7 @@ func parseBackendType(be json.RawMessage) (string, error) {
 	return bt.Type, nil
 }
 
+// ParseConfig 解析配置文件(net-conf.json), 格式为json.
 func ParseConfig(s string) (*Config, error) {
 	cfg := new(Config)
 	err := json.Unmarshal([]byte(s), cfg)

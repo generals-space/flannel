@@ -63,25 +63,30 @@ type kubeSubnetManager struct {
 }
 
 func NewSubnetManager(apiUrl, kubeconfig, prefix, netConfPath string) (subnet.Manager, error) {
-
 	var cfg *rest.Config
 	var err error
-	// Try to build kubernetes config from a master url or a kubeconfig filepath. If neither masterUrl
-	// or kubeconfigPath are passed in we fall back to inClusterConfig. If inClusterConfig fails,
-	// we fallback to the default config.
+	// Try to build kubernetes config from a master url or a kubeconfig filepath. 
+	// If neither masterUrl or kubeconfigPath are passed in 
+	// we fall back to inClusterConfig. 
+	// If inClusterConfig fails, we fallback to the default config.
+	// cfg 是配置对象.
 	cfg, err = clientcmd.BuildConfigFromFlags(apiUrl, kubeconfig)
 	if err != nil {
 		return nil, fmt.Errorf("fail to create kubernetes config: %v", err)
 	}
-
+	// 这里的c相当于kubectl客户端了吧.
 	c, err := clientset.NewForConfig(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("unable to initialize client: %v", err)
 	}
 
-	// The kube subnet mgr needs to know the k8s node name that it's running on so it can annotate it.
-	// If we're running as a pod then the POD_NAME and POD_NAMESPACE will be populated and can be used to find the node
-	// name. Otherwise, the environment variable NODE_NAME can be passed in.
+	// The kube subnet mgr needs to know the k8s node name 
+	// that it's running on so it can annotate it.
+	// If we're running as a pod then the POD_NAME and POD_NAMESPACE 
+	// will be populated and can be used to find the node name. 
+	// Otherwise, the environment variable NODE_NAME can be passed in.
+	// 在 kube-flannel.yaml 部署文件中, 会将 POD_NAME/POD_NAMESPACE 信息
+	// 注入到正在运行的pod的环境变量中, 这样运行在其中程序可以通过env获取到.
 	nodeName := os.Getenv("NODE_NAME")
 	if nodeName == "" {
 		podName := os.Getenv("POD_NAME")
@@ -246,8 +251,10 @@ func (ksm *kubeSubnetManager) AcquireLease(ctx context.Context, attrs *subnet.Le
 		n.Annotations[ksm.annotations.BackendPublicIP] != attrs.PublicIP.String() ||
 		n.Annotations[ksm.annotations.SubnetKubeManaged] != "true" ||
 		(n.Annotations[ksm.annotations.BackendPublicIPOverwrite] != "" && n.Annotations[ksm.annotations.BackendPublicIPOverwrite] != attrs.PublicIP.String()) {
+
 		n.Annotations[ksm.annotations.BackendType] = attrs.BackendType
 		n.Annotations[ksm.annotations.BackendData] = string(bd)
+		
 		if n.Annotations[ksm.annotations.BackendPublicIPOverwrite] != "" {
 			if n.Annotations[ksm.annotations.BackendPublicIP] != n.Annotations[ksm.annotations.BackendPublicIPOverwrite] {
 				glog.Infof("Overriding public ip with '%s' from node annotation '%s'",

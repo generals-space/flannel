@@ -30,7 +30,7 @@ Then you should be able to set the ARCH as above
 3. Run the build script, ensuring that `CGO_ENABLED=1`: `cd flannel; CGO_ENABLED=1 make dist/flanneld` for linux usage.
    Run the build script, ensuring that `CGO_ENABLED=1`: `cd flannel; CGO_ENABLED=1 make dist/flanneld.exe` for windows usage.
 
-# Release Process
+# Release Prgithub.com/vishvananda/netlinkocess
 
 1. Create a release on GitHub and use it to create a tag.
 2. Check the tag out and run

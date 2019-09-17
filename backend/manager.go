@@ -24,6 +24,7 @@ import (
 	"github.com/coreos/flannel/subnet"
 )
 
+// 各backend组件的名称与ta们构造函数的映射表
 var constructors = make(map[string]BackendCtor)
 
 type Manager interface {
@@ -39,6 +40,7 @@ type manager struct {
 	wg       sync.WaitGroup
 }
 
+// NewManager 只是一个结构体的构造函数, 没有特别的地方.
 func NewManager(ctx context.Context, sm subnet.Manager, extIface *ExternalInterface) Manager {
 	return &manager{
 		ctx:      ctx,
@@ -89,6 +91,9 @@ func (bm *manager) GetBackend(backendType string) (Backend, error) {
 	return be, nil
 }
 
+// Register 各backend组件通过调用此函数完成注册.
+// name为ta们各自的名称, 如udp, vxlan等, 
+// ctor为constructor的缩写, 是ta们各自的构造函数.
 func Register(name string, ctor BackendCtor) {
 	constructors[name] = ctor
 }

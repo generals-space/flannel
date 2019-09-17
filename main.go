@@ -46,12 +46,12 @@ import (
 	"sync"
 
 	// Backends need to be imported for their init() to get executed and them to register
+	// 下划线的那些行, 在这里引入是为了调用ta们各自的init()函数, 完成注册.
+	// 这样在backend包中, Manager可以维护一个包级的map映射.
 	"github.com/coreos/flannel/backend"
 	_ "github.com/coreos/flannel/backend/alivpc"
 	_ "github.com/coreos/flannel/backend/alloc"
-	_ "github.com/coreos/flannel/backend/awsvpc"
 	_ "github.com/coreos/flannel/backend/extension"
-	_ "github.com/coreos/flannel/backend/gce"
 	_ "github.com/coreos/flannel/backend/hostgw"
 	_ "github.com/coreos/flannel/backend/ipip"
 	_ "github.com/coreos/flannel/backend/ipsec"
@@ -85,7 +85,7 @@ type CmdLineOpts struct {
 	kubeApiUrl             string
 	kubeAnnotationPrefix   string
 	kubeConfigFile         string
-	iface                  flagSlice
+	iface                  flagSlice // 192.168.1.1这样的出口ip
 	ifaceRegex             flagSlice
 	ipMasq                 bool
 	subnetFile             string
@@ -159,6 +159,9 @@ func usage() {
 	os.Exit(0)
 }
 
+// newSubnetManager 得到 subnetManager 对象
+// 如果 opts.kubeSubnetMgr 为true, 则用 kube 提供的接口构建, 
+// 否则手动通过 etcd 的各项参数手动创建.
 func newSubnetManager() (subnet.Manager, error) {
 	if opts.kubeSubnetMgr {
 		return kube.NewSubnetManager(opts.kubeApiUrl, opts.kubeConfigFile, opts.kubeAnnotationPrefix, opts.netConfPath)
@@ -252,9 +255,11 @@ func main() {
 
 	// This is the main context that everything should run in.
 	// All spawned goroutines should exit when cancel is called on this context.
-	// Go routines spawned from main.go coordinate using a WaitGroup. This provides a mechanism to allow the shutdownHandler goroutine
-	// to block until all the goroutines return . If those goroutines spawn other goroutines then they are responsible for
-	// blocking and returning only when cancel() is called.
+	// Go routines spawned from main.go coordinate using a WaitGroup. 
+	// This provides a mechanism to allow the shutdownHandler goroutine
+	// to block until all the goroutines return. 
+	// If those goroutines spawn other goroutines then they are responsible for blocking 
+	// and returning only when cancel() is called.
 	ctx, cancel := context.WithCancel(context.Background())
 	wg := sync.WaitGroup{}
 
@@ -279,13 +284,14 @@ func main() {
 	// Create a backend manager then use it to create the backend and register the network with it.
 	bm := backend.NewManager(ctx, sm, extIface)
 	be, err := bm.GetBackend(config.BackendType)
+
 	if err != nil {
 		log.Errorf("Error fetching backend: %s", err)
 		cancel()
 		wg.Wait()
 		os.Exit(1)
 	}
-
+	// 不同后端构建的网络环境是不同的.
 	bn, err := be.RegisterNetwork(ctx, wg, config)
 	if err != nil {
 		log.Errorf("Error registering network: %s", err)
@@ -306,7 +312,9 @@ func main() {
 		go network.SetupAndEnsureIPTables(network.MasqRules(config.Network, bn.Lease()), opts.iptablesResyncSeconds)
 	}
 
-	// Always enables forwarding rules. This is needed for Docker versions >1.13 (https://docs.docker.com/engine/userguide/networking/default_network/container-communication/#container-communication-between-hosts)
+	// Always enables forwarding rules. 
+	// This is needed for Docker versions >1.13 
+	// (https://docs.docker.com/engine/userguide/networking/default_network/container-communication/#container-communication-between-hosts)
 	// In Docker 1.12 and earlier, the default FORWARD chain policy was ACCEPT.
 	// In Docker 1.13 and later, Docker sets the default policy of the FORWARD chain to DROP.
 	if opts.iptablesForwardRules {
@@ -331,7 +339,8 @@ func main() {
 
 	daemon.SdNotify(false, "READY=1")
 
-	// Kube subnet mgr doesn't lease the subnet for this node - it just uses the podCidr that's already assigned.
+	// Kube subnet mgr doesn't lease the subnet for this node.
+	// it just uses the podCidr that's already assigned.
 	if !opts.kubeSubnetMgr {
 		err = MonitorLease(ctx, sm, bn, &wg)
 		if err == errInterrupted {
@@ -390,6 +399,7 @@ func getConfig(ctx context.Context, sm subnet.Manager) (*subnet.Config, error) {
 			log.Infof("Found network config - Backend type: %s", config.BackendType)
 			return config, nil
 		}
+		// 这是自行实现了一个超时的Context啊...
 		select {
 		case <-ctx.Done():
 			return nil, errCanceled
@@ -399,6 +409,7 @@ func getConfig(ctx context.Context, sm subnet.Manager) (*subnet.Config, error) {
 	}
 }
 
+// MonitorLease ...
 func MonitorLease(ctx context.Context, sm subnet.Manager, bn backend.Network, wg *sync.WaitGroup) error {
 	// Use the subnet manager to start watching leases.
 	evts := make(chan subnet.Event)
@@ -444,12 +455,16 @@ func MonitorLease(ctx context.Context, sm subnet.Manager, bn backend.Network, wg
 	}
 }
 
+// LookupExtIface ...
+// ifname: 其实是点分十进制IP字符串...叫ifname真是太失真了
+// 返回接口对象, 该接口的地址, 以及对外暴露的地址.
 func LookupExtIface(ifname string, ifregex string) (*backend.ExternalInterface, error) {
 	var iface *net.Interface
 	var ifaceAddr net.IP
 	var err error
 
 	if len(ifname) > 0 {
+		// ifaceAddr只是IP对象
 		if ifaceAddr = net.ParseIP(ifname); ifaceAddr != nil {
 			log.Infof("Searching for interface using %s", ifaceAddr)
 			iface, err = ip.GetInterfaceByIP(ifaceAddr)
@@ -457,6 +472,7 @@ func LookupExtIface(ifname string, ifregex string) (*backend.ExternalInterface, 
 				return nil, fmt.Errorf("error looking up interface %s: %s", ifname, err)
 			}
 		} else {
+			// 返回指定名称的网络接口对象, name可为eth0这种.
 			iface, err = net.InterfaceByName(ifname)
 			if err != nil {
 				return nil, fmt.Errorf("error looking up interface %s: %s", ifname, err)
@@ -533,7 +549,8 @@ func LookupExtIface(ifname string, ifregex string) (*backend.ExternalInterface, 
 	if iface.MTU == 0 {
 		return nil, fmt.Errorf("failed to determine MTU for %s interface", ifaceAddr)
 	}
-
+	// 这是当前节点对外暴露的地址? 就是说, 其他节点会通过这个地址访问此节点, 
+	// 如不指定则使用与iface接口的地址.
 	var extAddr net.IP
 
 	if len(opts.publicIP) > 0 {
@@ -586,6 +603,7 @@ func WriteSubnetFile(path string, nw ip.IP4Net, ipMasq bool, bn backend.Network)
 	//TODO - is this safe? What if it's not on the same FS?
 }
 
+// mustRunHealthz 启动http服务, 处理健康检查请求.
 func mustRunHealthz() {
 	address := net.JoinHostPort(opts.healthzIP, strconv.Itoa(opts.healthzPort))
 	log.Infof("Start healthz server on %s", address)
@@ -601,6 +619,7 @@ func mustRunHealthz() {
 	}
 }
 
+// ReadCIDRFromSubnetFile 从.env配置文件中读取指定字段CIDRKey的值.
 func ReadCIDRFromSubnetFile(path string, CIDRKey string) ip.IP4Net {
 	var prevCIDR ip.IP4Net
 	if _, err := os.Stat(path); !os.IsNotExist(err) {

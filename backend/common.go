@@ -29,15 +29,17 @@ type ExternalInterface struct {
 	ExtAddr   net.IP
 }
 
+// Backend ...
 // Besides the entry points in the Backend interface, the backend's New()
 // function receives static network interface information (like internal and
-// external IP addresses, MTU, etc) which it should cache for later use if
-// needed.
+// external IP addresses, MTU, etc) which it should cache for later use if needed.
 type Backend interface {
 	// Called when the backend should create or begin managing a new network
 	RegisterNetwork(ctx context.Context, wg sync.WaitGroup, config *subnet.Config) (Network, error)
 }
 
+// Network ...
+// SimpleNetwork与RouteNetwork都实现了Network接口
 type Network interface {
 	Lease() *subnet.Lease
 	MTU() int

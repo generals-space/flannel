@@ -1,84 +1,39 @@
-# flannel
 
-![flannel Logo](logos/flannel-horizontal-color.png)
+```
+docker run -it --name flannel -v ~/go/src/github.com/coreos/flannel:/root/go/src/github.com/coreos/flannel generals/golang /bin/bash
 
-[![Build Status](https://travis-ci.org/coreos/flannel.png?branch=master)](https://travis-ci.org/coreos/flannel)
+ln -s /root/go/src/github.com/coreos/flannel /root/flannel
+export http_proxy=http://192.168.124.85:1081
+export https_proxy=http://192.168.124.85:1081
+go get -v github.com/rogpeppe/godef
+go get -v golang.org/x/tools/go/buildutil
+go get -v github.com/ramya-rao-a/go-outline
+```
 
-Flannel is a simple and easy way to configure a layer 3 network fabric designed for Kubernetes.
+## attach to running container
 
-## How it works
+## 编译
 
-Flannel runs a small, single binary agent called `flanneld` on each host, and is responsible for allocating a subnet lease to each host out of a larger, preconfigured address space.
-Flannel uses either the Kubernetes API or [etcd][etcd] directly to store the network configuration, the allocated subnets, and any auxiliary data (such as the host's public IP).
-Packets are forwarded using one of several [backend mechanisms][backends] including VXLAN and various cloud integrations.
+不用下载依赖, 都在vendor目录下.
 
-### Networking details
+进入容器执行`make dist/flanneld`进行编译会出错.
 
-Platforms like Kubernetes assume that each container (pod) has a unique, routable IP inside the cluster.
-The advantage of this model is that it removes the port mapping complexities that come from sharing a single host IP.
+```
+[root@6e48ee2d3b63 flannel]# make dist/flanneld
+go build -o dist/flanneld \
+  -ldflags '-s -w -X github.com/coreos/flannel/version.Version=v0.11.0-34-gecb6db3-dirty -extldflags "-static"'
+# github.com/coreos/flannel
+/usr/local/go/pkg/tool/linux_amd64/link: running gcc failed: exit status 1
+/usr/bin/ld: cannot find -lpthread
+/usr/bin/ld: cannot find -lc
+collect2: error: ld returned 1 exit status
 
-Flannel is responsible for providing a layer 3 IPv4 network between multiple nodes in a cluster. Flannel does not control how containers are networked to the host, only how the traffic is transported between hosts. However, flannel does provide a CNI plugin for Kubernetes and a guidance on integrating with Docker.
+make: *** [dist/flanneld] Error 2
+```
 
-Flannel is focused on networking. For network policy, other projects such as [Calico][calico] can be used.
+参考文章
 
-## Getting started on Kubernetes
+1. [/usr/bin/ld: cannot find -lc 解决](http://blog.chinaunix.net/uid-31410005-id-5771901.html)
+2. [Linux环境下gcc静态编译/usr/bin/ld: cannot find -lc错误原因及解决方法 ](https://www.xuebuyuan.com/3263655.html)
 
-The easiest way to deploy flannel with Kubernetes is to use one of several deployment tools and distributions that network clusters with flannel by default. For example, CoreOS's [Tectonic][tectonic] sets up flannel in the Kubernetes clusters it creates using the open source [Tectonic Installer][tectonic-installer] to drive the setup process.
-
-Though not required, it's recommended that flannel uses the Kubernetes API as its backing store which avoids the need to deploy a discrete `etcd` cluster for `flannel`. This `flannel` mode is known as the *kube subnet manager*.
-
-### Deploying flannel manually
-
-Flannel can be added to any existing Kubernetes cluster though it's simplest to add `flannel` before any pods using the pod network have been started.
-
-For Kubernetes v1.7+
-`kubectl apply -f https://raw.githubusercontent.com/coreos/flannel/master/Documentation/kube-flannel.yml`
-
-See [Kubernetes](Documentation/kubernetes.md) for more details.
-
-## Getting started on Docker
-
-flannel is also widely used outside of kubernetes. When deployed outside of kubernetes, etcd is always used as the datastore. For more details integrating flannel with Docker see [Running](Documentation/running.md)
-
-## Documentation
-- [Building (and releasing)](Documentation/building.md)
-- [Configuration](Documentation/configuration.md)
-- [Backends](Documentation/backends.md)
-- [Running](Documentation/running.md)
-- [Troubleshooting](Documentation/troubleshooting.md)
-- [Projects integrating with flannel](Documentation/integrations.md)
-- [Production users](Documentation/production-users.md)
-
-## Contact
-
-* Mailing list: coreos-dev
-* IRC: #coreos on freenode.org
-* Slack: #flannel on [Calico Users Slack](https://slack.projectcalico.org)
-* Planning/Roadmap: [milestones][milestones], [roadmap][roadmap]
-* Bugs: [issues][flannel-issues]
-
-## Contributing
-
-See [CONTRIBUTING][contributing] for details on submitting patches and the contribution workflow.
-
-## Reporting bugs
-
-See [reporting bugs][reporting] for details about reporting any issues.
-
-## Licensing
-
-Flannel is under the Apache 2.0 license. See the [LICENSE][license] file for details.
-
-[calico]: http://www.projectcalico.org
-[pod-cidr]: https://kubernetes.io/docs/admin/kubelet/
-[etcd]: https://github.com/coreos/etcd
-[contributing]: CONTRIBUTING.md
-[license]: https://github.com/coreos/flannel/blob/master/LICENSE
-[milestones]: https://github.com/coreos/flannel/milestones
-[flannel-issues]: https://github.com/coreos/flannel/issues
-[backends]: Documentation/backends.md
-[roadmap]: https://github.com/kubernetes/kubernetes/milestones
-[reporting]: Documentation/reporting_bugs.md
-[tectonic-installer]: https://github.com/coreos/tectonic-installer
-[installing-with-kubeadm]: https://kubernetes.io/docs/getting-started-guides/kubeadm/
-[tectonic]: https://coreos.com/tectonic/
+这其实是因为静态编译没有找到`.a`文件导致的, yum安装`glibc-static`可解决.
