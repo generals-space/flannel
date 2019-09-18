@@ -94,9 +94,12 @@ func New(c *Config) Controller {
 	return ctlr
 }
 
-// Run begins processing items, and will continue until a value is sent down stopCh.
+// Run begins processing items, and will continue 
+// until a value is sent down stopCh.
 // It's an error to call Run more than once.
 // Run blocks; call via go.
+// Run 开始处理 item 项, 直到 stopCh 收到停止的信号
+// 通过 go func() 形式调用, 因为会阻塞. 且只能被调用1次.
 func (c *controller) Run(stopCh <-chan struct{}) {
 	defer utilruntime.HandleCrash()
 	go func() {
@@ -296,7 +299,15 @@ func NewInformer(
 //    long as possible (until the upstream source closes the watch or times out,
 //    or you stop the controller).
 //  * h is the object you want notifications sent to.
-//
+// 参数: 
+// * lw
+// * objType: 希望获取到的对象的类型...runtime.Object是指任意类型吗?
+// * resyncPeriod: 如果此值不为0, re-list事件会时常触发.
+//   触发时会收到 OnUpdate 调用, 即使什么东西都没变.
+//   否则 re-list 事件会尽量延迟. 直到上游关闭了监听器, 或是监听超时, 
+//   再或者就是我们这边主动关闭了 controller 控制器.
+// * h: 通知的目标
+// 
 func NewIndexerInformer(
 	lw ListerWatcher,
 	objType runtime.Object,

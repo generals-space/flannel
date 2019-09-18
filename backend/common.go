@@ -25,8 +25,8 @@ import (
 
 type ExternalInterface struct {
 	Iface     *net.Interface
-	IfaceAddr net.IP
-	ExtAddr   net.IP
+	IfaceAddr net.IP // 接口上的IP, 一般是宿主机的IP
+	ExtAddr   net.IP // ...好像和 IfaceAddr 一样?
 }
 
 // Backend ...

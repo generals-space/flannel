@@ -56,6 +56,7 @@ func (be *UdpBackend) RegisterNetwork(ctx context.Context, wg sync.WaitGroup, co
 	}
 
 	// Parse our configuration
+	// 解析 udp 模型相关的配置
 	if len(config.Backend) > 0 {
 		if err := json.Unmarshal(config.Backend, &cfg); err != nil {
 			return nil, fmt.Errorf("error decoding UDP backend config: %v", err)
@@ -70,19 +71,19 @@ func (be *UdpBackend) RegisterNetwork(ctx context.Context, wg sync.WaitGroup, co
 	l, err := be.sm.AcquireLease(ctx, &attrs)
 	switch err {
 	case nil:
-
+		// 这里什么都不做.
 	case context.Canceled, context.DeadlineExceeded:
 		return nil, err
-
 	default:
 		return nil, fmt.Errorf("failed to acquire lease: %v", err)
 	}
 
 	// Tunnel's subnet is that of the whole overlay network (e.g. /16)
 	// and not that of the individual host (e.g. /24)
+	// tunnel 的子网范围是掩码16, 是整个虚拟网段, 而不是24(单个主机的容器网段)
 	tunNet := ip.IP4Net{
 		IP:        l.Subnet.IP,
-		PrefixLen: config.Network.PrefixLen,
+		PrefixLen: config.Network.PrefixLen, // 网段前缀长度, 这里应该是16
 	}
 
 	return newNetwork(be.sm, be.extIface, cfg.Port, tunNet, l)

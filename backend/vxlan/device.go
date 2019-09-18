@@ -44,6 +44,7 @@ type vxlanDevice struct {
 }
 
 func newVXLANDevice(devAttrs *vxlanDeviceAttrs) (*vxlanDevice, error) {
+	// 貌似等同于 ip link add 系列的命令.
 	link := &netlink.Vxlan{
 		LinkAttrs: netlink.LinkAttrs{
 			Name: devAttrs.name,
@@ -109,6 +110,9 @@ func ensureLink(vxlan *netlink.Vxlan) (*netlink.Vxlan, error) {
 	return vxlan, nil
 }
 
+// Configure 为 flannel.x 设备添加IP地址, 并启动.
+// ipn 为 192.168.3.0(没错, 就是网络号), 且 dev 的网段前缀为 32, 
+// 最终 flannel.x 的地址将为 292.168.3.0/32
 func (dev *vxlanDevice) Configure(ipn ip.IP4Net) error {
 	if err := ip.EnsureV4AddressOnLink(ipn, dev.link); err != nil {
 		return fmt.Errorf("failed to ensure address of interface %s: %s", dev.link.Attrs().Name, err)
@@ -121,6 +125,8 @@ func (dev *vxlanDevice) Configure(ipn ip.IP4Net) error {
 	return nil
 }
 
+// MACAddr 返回 vlan device的hardware addr, 即mac地址
+// vlan device 就是 flannel.1 接口
 func (dev *vxlanDevice) MACAddr() net.HardwareAddr {
 	return dev.link.HardwareAddr
 }

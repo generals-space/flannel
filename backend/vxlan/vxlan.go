@@ -88,6 +88,9 @@ func New(sm subnet.Manager, extIface *backend.ExternalInterface) (backend.Backen
 	return backend, nil
 }
 
+// params: 
+//  * publicIP: 所在 node 的IP 
+//  * mac: flannel.x 的mac地址
 func newSubnetAttrs(publicIP net.IP, mac net.HardwareAddr) (*subnet.LeaseAttrs, error) {
 	data, err := json.Marshal(&vxlanLeaseAttrs{hardwareAddr(mac)})
 	if err != nil {
@@ -129,13 +132,12 @@ func (be *VXLANBackend) RegisterNetwork(ctx context.Context, wg sync.WaitGroup, 
 		gbp:       cfg.GBP,
 		learning:  cfg.Learning,
 	}
-
+	// dev 即名称 flannel.x 的网络接口
 	dev, err := newVXLANDevice(&devAttrs)
 	if err != nil {
 		return nil, err
 	}
 	dev.directRouting = cfg.DirectRouting
-
 	subnetAttrs, err := newSubnetAttrs(be.extIface.ExtAddr, dev.MACAddr())
 	if err != nil {
 		return nil, err
@@ -144,19 +146,22 @@ func (be *VXLANBackend) RegisterNetwork(ctx context.Context, wg sync.WaitGroup, 
 	lease, err := be.subnetMgr.AcquireLease(ctx, subnetAttrs)
 	switch err {
 	case nil:
+		// 这里什么也不做.
 	case context.Canceled, context.DeadlineExceeded:
 		return nil, err
 	default:
 		return nil, fmt.Errorf("failed to acquire lease: %v", err)
 	}
-
-	// Ensure that the device has a /32 address so that no broadcast routes are created.
-	// This IP is just used as a source address for host to workload traffic (so
-	// the return path for the traffic has an address on the flannel network to use as the destination)
+	// Ensure that the device has a /32 address 
+	// so that no broadcast routes are created.
+	// This IP is just used as a source address for host to workload traffic 
+	// (so the return path for the traffic has an address 
+	// on the flannel network to use as the destination)
+	// lease.Subnet.IP 当前node节点划分到的网络号, 如 192.168.9.0, 没有/24后缀
+	// 为 flannel.x 设备添加IP地址并启动
 	if err := dev.Configure(ip.IP4Net{IP: lease.Subnet.IP, PrefixLen: 32}); err != nil {
 		return nil, fmt.Errorf("failed to configure interface %s: %s", dev.link.Attrs().Name, err)
 	}
-
 	return newNetwork(be.subnetMgr, be.extIface, dev, ip.IP4Net{}, lease)
 }
 

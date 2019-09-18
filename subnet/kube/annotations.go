@@ -28,6 +28,8 @@ type annotations struct {
 	BackendPublicIPOverwrite string
 }
 
+// newAnnotations ...
+// 验证 prefix 是否符合指定格式, 然后构建 annotation 对象.
 func newAnnotations(prefix string) (annotations, error) {
 	slashCnt := strings.Count(prefix, "/")
 	if slashCnt > 1 {
@@ -40,12 +42,15 @@ func newAnnotations(prefix string) (annotations, error) {
 		prefix += "-"
 	}
 
-	// matches is a regexp matching the format used by the kubernetes for
-	// annotations. Following rules apply:
-	//
+	// matches is a regexp matching the format used by the kubernetes
+	// for annotations. Following rules apply:
+	// matches 是与kuber中使用的注解格式匹配的正则, 需要遵循如下规则:
 	//	- must start with FQDN - must contain at most one slash "/"
 	//	- must contain only lowercase letters, nubers, underscores,
 	//	  hyphens, dots and slash
+	// 1. 最多包含一个斜线
+	// 2. 只能包含小写字母, 数字, 下划线, 中横线, 点号和斜线
+	// FQDN: Fully Qualified Domain Name 完整域名
 	matches, err := regexp.MatchString(`(?:[a-z0-9_-]+\.)+[a-z0-9_-]+/(?:[a-z0-9_-]+-)?$`, prefix)
 	if err != nil {
 		panic(err)

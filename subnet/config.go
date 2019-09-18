@@ -22,6 +22,8 @@ import (
 	"github.com/coreos/flannel/pkg/ip"
 )
 
+// Config 全局子网网段配置, 
+// 包括网络模型名称和此模型下的特殊配置.
 type Config struct {
 	Network     ip.IP4Net
 	SubnetMin   ip.IP4

@@ -270,18 +270,21 @@ func main() {
 	}()
 
 	if opts.healthzPort > 0 {
-		// It's not super easy to shutdown the HTTP server so don't attempt to stop it cleanly
+		// It's not super easy to shutdown the HTTP server 
+		// so don't attempt to stop it cleanly
 		go mustRunHealthz()
 	}
 
 	// Fetch the network config (i.e. what backend to use etc..).
+	// config 子网网段配置
 	config, err := getConfig(ctx, sm)
 	if err == errCanceled {
 		wg.Wait()
 		os.Exit(0)
 	}
 
-	// Create a backend manager then use it to create the backend and register the network with it.
+	// Create a backend manager then use it to create the backend
+	// and register the network with it.
 	bm := backend.NewManager(ctx, sm, extIface)
 	be, err := bm.GetBackend(config.BackendType)
 
@@ -291,7 +294,9 @@ func main() {
 		wg.Wait()
 		os.Exit(1)
 	}
-	// 不同后端构建的网络环境是不同的.
+	// 初始化当前选定的网络模型.
+	// 注意: 不同后端构建的网络环境是不同的.
+	// 比如vxlan模型, 在node节点上创建 flannel.x 网络接口, 然后添加IP并启动该设备.
 	bn, err := be.RegisterNetwork(ctx, wg, config)
 	if err != nil {
 		log.Errorf("Error registering network: %s", err)
@@ -324,12 +329,14 @@ func main() {
 
 	if err := WriteSubnetFile(opts.subnetFile, config.Network, opts.ipMasq, bn); err != nil {
 		// Continue, even though it failed.
+		// 写入失败不影响启动进程
 		log.Warningf("Failed to write subnet file: %s", err)
 	} else {
 		log.Infof("Wrote subnet file to %s", opts.subnetFile)
 	}
 
-	// Start "Running" the backend network. This will block until the context is done so run in another goroutine.
+	// Start "Running" the backend network. 
+	// This will block until the context is done so run in another goroutine.
 	log.Info("Running backend.")
 	wg.Add(1)
 	go func() {
@@ -387,6 +394,7 @@ func shutdownHandler(ctx context.Context, sigs chan os.Signal, cancel context.Ca
 	signal.Stop(sigs)
 }
 
+// getConfig 从 subnet manager 中获取 subnet 子网网段配置
 func getConfig(ctx context.Context, sm subnet.Manager) (*subnet.Config, error) {
 	// Retry every second until it succeeds
 	for {
@@ -410,6 +418,7 @@ func getConfig(ctx context.Context, sm subnet.Manager) (*subnet.Config, error) {
 }
 
 // MonitorLease ...
+// caller: main() 只有一处
 func MonitorLease(ctx context.Context, sm subnet.Manager, bn backend.Network, wg *sync.WaitGroup) error {
 	// Use the subnet manager to start watching leases.
 	evts := make(chan subnet.Event)

@@ -30,10 +30,12 @@ func FromBytes(ip []byte) IP4 {
 		(uint32(ip[0]) << 24))
 }
 
+// 格式转换: net.IP -> ip.IP4
 func FromIP(ip net.IP) IP4 {
 	return FromBytes(ip.To4())
 }
 
+// ParseIP4 将点分十进制的IP字符串, 转换成整型数值.
 func ParseIP4(s string) (IP4, error) {
 	ip := net.ParseIP(s)
 	if ip == nil {

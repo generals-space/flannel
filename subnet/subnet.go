@@ -34,13 +34,13 @@ var (
 )
 
 type LeaseAttrs struct {
-	PublicIP    ip.IP4
+	PublicIP    ip.IP4			// 一般为所在node的IP地址, 如 192.168.7.51
 	BackendType string          `json:",omitempty"`
 	BackendData json.RawMessage `json:",omitempty"`
 }
 
 type Lease struct {
-	Subnet     ip.IP4Net
+	Subnet     ip.IP4Net // 当前所在node分到的子网网段, 如 	192.168.9.0/24
 	Attrs      LeaseAttrs
 	Expiration time.Time
 

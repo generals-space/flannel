@@ -62,6 +62,8 @@ type kubeSubnetManager struct {
 	events         chan subnet.Event
 }
 
+// NewSubnetManager ...
+// @prefix: annotation 前缀
 func NewSubnetManager(apiUrl, kubeconfig, prefix, netConfPath string) (subnet.Manager, error) {
 	var cfg *rest.Config
 	var err error
@@ -154,7 +156,7 @@ func newKubeSubnetManager(c clientset.Interface, sc *subnet.Config, nodeName, pr
 			},
 		},
 		&v1.Node{},
-		resyncPeriod,
+		resyncPeriod, // 5分钟
 		cache.ResourceEventHandlerFuncs{
 			AddFunc: func(obj interface{}) {
 				ksm.handleAddLeaseEvent(subnet.EventAdded, obj)
@@ -163,6 +165,7 @@ func newKubeSubnetManager(c clientset.Interface, sc *subnet.Config, nodeName, pr
 			DeleteFunc: func(obj interface{}) {
 				node, isNode := obj.(*v1.Node)
 				// We can get DeletedFinalStateUnknown instead of *api.Node here and we need to handle that correctly.
+				// 有可能并不能直接获取 Node 对象, 而是 DeletedFinalStateUnknown
 				if !isNode {
 					deletedState, ok := obj.(cache.DeletedFinalStateUnknown)
 					if !ok {
@@ -188,6 +191,7 @@ func newKubeSubnetManager(c clientset.Interface, sc *subnet.Config, nodeName, pr
 
 func (ksm *kubeSubnetManager) handleAddLeaseEvent(et subnet.EventType, obj interface{}) {
 	n := obj.(*v1.Node)
+	// 注解中包含 kube-subnet-manager 键, 值为 true
 	if s, ok := n.Annotations[ksm.annotations.SubnetKubeManaged]; !ok || s != "true" {
 		return
 	}
@@ -224,6 +228,8 @@ func (ksm *kubeSubnetManager) GetNetworkConfig(ctx context.Context) (*subnet.Con
 	return ksm.subnetConf, nil
 }
 
+// AcquireLease ... 
+// 返回一个 lease 对象, 将参数 attrs 赋值给 lease.Attrs 成员
 func (ksm *kubeSubnetManager) AcquireLease(ctx context.Context, attrs *subnet.LeaseAttrs) (*subnet.Lease, error) {
 	cachedNode, err := ksm.nodeStore.Get(ksm.nodeName)
 	if err != nil {
@@ -291,13 +297,19 @@ func (ksm *kubeSubnetManager) AcquireLease(ctx context.Context, attrs *subnet.Le
 	if err != nil {
 		glog.Errorf("Unable to set NetworkUnavailable to False for %q: %v", ksm.nodeName, err)
 	}
-	return &subnet.Lease{
+	lease := &subnet.Lease{
 		Subnet:     ip.FromIPNet(cidr),
 		Attrs:      *attrs,
 		Expiration: time.Now().Add(24 * time.Hour),
-	}, nil
+	}
+
+	glog.Infof("==================== acquire lease return : %+v", lease)
+	return lease, nil
 }
 
+// WatchLeases ...
+// 监听 ksm.events 通道, node的增删改查会会将事件发送到这个通道.
+// 这是一个阻塞操作, 但并不是死循环,, 而是一次性的.
 func (ksm *kubeSubnetManager) WatchLeases(ctx context.Context, cursor interface{}) (subnet.LeaseWatchResult, error) {
 	select {
 	case event := <-ksm.events:
@@ -314,6 +326,7 @@ func (ksm *kubeSubnetManager) Run(ctx context.Context) {
 	ksm.nodeController.Run(ctx.Done())
 }
 
+// nodeToLease 根据 node 中的信息, 构建 Lease 对象, 没有特殊操作.
 func (ksm *kubeSubnetManager) nodeToLease(n v1.Node) (l subnet.Lease, err error) {
 	l.Attrs.PublicIP, err = ip.ParseIP4(n.Annotations[ksm.annotations.BackendPublicIP])
 	if err != nil {

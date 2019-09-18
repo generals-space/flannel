@@ -41,6 +41,11 @@ const (
 	encapOverhead = 50
 )
 
+// newNetwork ...
+// 
+// params:
+//  * extIface: node节点上的网络接口
+//  * dev: flannel.x 设备对象
 func newNetwork(subnetMgr subnet.Manager, extIface *backend.ExternalInterface, dev *vxlanDevice, _ ip.IP4Net, lease *subnet.Lease) (*network, error) {
 	nw := &network{
 		SimpleNetwork: backend.SimpleNetwork{
@@ -127,6 +132,7 @@ func (nw *network) handleSubnetEvents(batch []subnet.Event) {
 
 		switch event.Type {
 		case subnet.EventAdded:
+			log.Infof("============= handle subnet event: add event received.")
 			if directRoutingOK {
 				log.V(2).Infof("Adding direct route to subnet: %s PublicIP: %s", sn, attrs.PublicIP)
 
@@ -170,6 +176,7 @@ func (nw *network) handleSubnetEvents(batch []subnet.Event) {
 				}
 			}
 		case subnet.EventRemoved:
+			log.Infof("============= handle subnet event: remove event received.")
 			if directRoutingOK {
 				log.V(2).Infof("Removing direct route to subnet: %s PublicIP: %s", sn, attrs.PublicIP)
 				if err := netlink.RouteDel(&directRoute); err != nil {

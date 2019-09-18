@@ -25,6 +25,7 @@ type SimpleNetwork struct {
 	ExtIface    *ExternalInterface
 }
 
+// Lease 返回 network 对象的 lease 成员
 func (n *SimpleNetwork) Lease() *subnet.Lease {
 	return n.SubnetLease
 }
