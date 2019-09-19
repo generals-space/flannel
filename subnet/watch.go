@@ -23,44 +23,6 @@ import (
 	"github.com/coreos/flannel/pkg/ip"
 )
 
-// WatchLeases performs a long term watch of the given network's subnet leases
-// and communicates addition/deletion events on receiver channel. It takes care
-// of handling "fall-behind" logic where the history window has advanced too far
-// and it needs to diff the latest snapshot with its saved state and generate events
-func WatchLeases(ctx context.Context, sm Manager, ownLease *Lease, receiver chan []Event) {
-	lw := &leaseWatcher{
-		ownLease: ownLease,
-	}
-	var cursor interface{}
-
-	for {
-		res, err := sm.WatchLeases(ctx, cursor)
-		if err != nil {
-			if err == context.Canceled || err == context.DeadlineExceeded {
-				return
-			}
-
-			log.Errorf("Watch subnets: %v", err)
-			time.Sleep(time.Second)
-			continue
-		}
-
-		cursor = res.Cursor
-
-		var batch []Event
-
-		if len(res.Events) > 0 {
-			batch = lw.update(res.Events)
-		} else {
-			batch = lw.reset(res.Snapshot)
-		}
-
-		if len(batch) > 0 {
-			receiver <- batch
-		}
-	}
-}
-
 type leaseWatcher struct {
 	ownLease *Lease
 	leases   []Lease
@@ -152,6 +114,46 @@ func (lw *leaseWatcher) remove(lease *Lease) Event {
 func deleteLease(l []Lease, i int) []Lease {
 	l[i] = l[len(l)-1]
 	return l[:len(l)-1]
+}
+
+// WatchLeases performs a long term watch of the given network's subnet leases
+// and communicates addition/deletion events on receiver channel. 
+// It takes care of handling "fall-behind" logic 
+// where the history window has advanced too far
+// and it needs to diff the latest snapshot with its saved state 
+// and generate events
+func WatchLeases(ctx context.Context, sm Manager, ownLease *Lease, receiver chan []Event) {
+	lw := &leaseWatcher{
+		ownLease: ownLease,
+	}
+	var cursor interface{}
+
+	for {
+		res, err := sm.WatchLeases(ctx, cursor)
+		if err != nil {
+			if err == context.Canceled || err == context.DeadlineExceeded {
+				return
+			}
+
+			log.Errorf("Watch subnets: %v", err)
+			time.Sleep(time.Second)
+			continue
+		}
+
+		cursor = res.Cursor
+
+		var batch []Event
+
+		if len(res.Events) > 0 {
+			batch = lw.update(res.Events)
+		} else {
+			batch = lw.reset(res.Snapshot)
+		}
+
+		if len(batch) > 0 {
+			receiver <- batch
+		}
+	}
 }
 
 // WatchLease performs a long term watch of the given network's subnet lease

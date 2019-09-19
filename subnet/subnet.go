@@ -118,9 +118,15 @@ func MakeSubnetKey(sn ip.IP4Net) string {
 	return sn.StringSep(".", "-")
 }
 
+// Manager subnet manager
+// 有两种实现: 
+//  * LocalManager: 直接连接 etcd 配置 subnet 
+//  * KubeSubnetManager: 连接 apiserver 获取节点和网络配置信息
 type Manager interface {
 	GetNetworkConfig(ctx context.Context) (*Config, error)
 	AcquireLease(ctx context.Context, attrs *LeaseAttrs) (*Lease, error)
+	// RenewLease LocalManager 的实现是刷新 etcd 中 lease 键的TTL, 相当于续约.
+	// kuber subnet manager 没有实现这个方法.
 	RenewLease(ctx context.Context, lease *Lease) error
 	WatchLease(ctx context.Context, sn ip.IP4Net, cursor interface{}) (LeaseWatchResult, error)
 	WatchLeases(ctx context.Context, cursor interface{}) (LeaseWatchResult, error)

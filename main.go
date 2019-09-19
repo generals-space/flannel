@@ -428,13 +428,15 @@ func MonitorLease(ctx context.Context, sm subnet.Manager, bn backend.Network, wg
 		subnet.WatchLease(ctx, sm, bn.Lease().Subnet, evts)
 		wg.Done()
 	}()
-
+	// subnetLeaseRenewMargin 默认值 60, 即 lease 到期时间为1小时
 	renewMargin := time.Duration(opts.subnetLeaseRenewMargin) * time.Minute
 	dur := bn.Lease().Expiration.Sub(time.Now()) - renewMargin
 
 	for {
 		select {
 		case <-time.After(dur):
+			// LocalManager 的 RenewLease 是刷新 TTL, 相当于续约
+			// KubeSubnetManager 未实现这个方法, 将会返回一个 error
 			err := sm.RenewLease(ctx, bn.Lease())
 			if err != nil {
 				log.Error("Error renewing lease (trying again in 1 min): ", err)
