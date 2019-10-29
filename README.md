@@ -1,16 +1,10 @@
+创建容器, 用于编译flannel, 同时用于Mac平台通过vscode远程开发.
 
 ```
-docker run -it --name flannel -v ~/go/src/github.com/coreos/flannel:/root/go/src/github.com/coreos/flannel generals/golang /bin/bash
-
-ln -s /root/go/src/github.com/coreos/flannel /root/flannel
-export http_proxy=http://192.168.124.85:1081
-export https_proxy=http://192.168.124.85:1081
-go get -v github.com/rogpeppe/godef
-go get -v golang.org/x/tools/go/buildutil
-go get -v github.com/ramya-rao-a/go-outline
+docker run -it --name flannel -v ~/go/src/github.com/generals-space/flannel:/root/go/src/github.com/coreos/flannel registry.cn-hangzhou.aliyuncs.com/generals-space/golang-rc /bin/bash
 ```
 
-## attach to running container
+然后vscode连接到正在运行的容器(需要`Remote - Containers`插件)
 
 ## 编译
 
@@ -31,9 +25,12 @@ collect2: error: ld returned 1 exit status
 make: *** [dist/flanneld] Error 2
 ```
 
-参考文章
+解决方法
 
-1. [/usr/bin/ld: cannot find -lc 解决](http://blog.chinaunix.net/uid-31410005-id-5771901.html)
-2. [Linux环境下gcc静态编译/usr/bin/ld: cannot find -lc错误原因及解决方法 ](https://www.xuebuyuan.com/3263655.html)
+```
+yum install -y glibc-static
+```
 
-这其实是因为静态编译没有找到`.a`文件导致的, yum安装`glibc-static`可解决.
+## 部署
+
+flannel-base, flannel的dockerfile用于构建flannel镜像, 在kube-flannel.yml中使用, 而实际的编译操作则需要在golang-rc容器中完成.

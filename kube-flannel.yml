@@ -157,7 +157,7 @@ spec:
       serviceAccountName: flannel
       initContainers:
       - name: install-cni
-        image: harbor.generals.space/kuber/flannel:1.0.5
+        image: registry.cn-hangzhou.aliyuncs.com/generals-kuber/flannel:1.0.0
         command:
         - cp
         args:
@@ -171,7 +171,7 @@ spec:
           mountPath: /etc/kube-flannel/
       containers:
       - name: kube-flannel
-        image: harbor.generals.space/kuber/flannel:1.0.5
+        image: registry.cn-hangzhou.aliyuncs.com/generals-kuber/flannel:1.0.0
         command:
         - /opt/bin/flanneld
         args:
