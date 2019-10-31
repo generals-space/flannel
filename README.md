@@ -4,7 +4,9 @@
 docker run -it --name flannel -v ~/go/src/github.com/generals-space/flannel:/root/go/src/github.com/coreos/flannel registry.cn-hangzhou.aliyuncs.com/generals-space/golang-rc /bin/bash
 ```
 
-然后vscode连接到正在运行的容器(需要`Remote - Containers`插件)
+然后vscode连接到正在运行的容器(需要`Remote - Containers`插件).
+
+> 注意: 连接成功后需要安装 vscode 的 GO 扩展, 这一步要在 vscode 中完成.
 
 ## 编译
 
@@ -34,3 +36,7 @@ yum install -y glibc-static
 ## 部署
 
 flannel-base, flannel的dockerfile用于构建flannel镜像, 在kube-flannel.yml中使用, 而实际的编译操作则需要在golang-rc容器中完成.
+
+```
+docker build --no-cache=true -f flannel.dockerfile -t registry.cn-hangzhou.aliyuncs.com/generals-kuber/flannel:1.0.1 .
+```

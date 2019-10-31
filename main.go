@@ -160,7 +160,7 @@ func usage() {
 }
 
 // newSubnetManager 得到 subnetManager 对象
-// 如果 opts.kubeSubnetMgr 为true, 则用 kube 提供的接口构建, 
+// 如果 opts.kubeSubnetMgr 为true, 则用 kube 提供的接口构建,
 // 否则手动通过 etcd 的各项参数手动创建.
 func newSubnetManager() (subnet.Manager, error) {
 	if opts.kubeSubnetMgr {
@@ -255,10 +255,10 @@ func main() {
 
 	// This is the main context that everything should run in.
 	// All spawned goroutines should exit when cancel is called on this context.
-	// Go routines spawned from main.go coordinate using a WaitGroup. 
+	// Go routines spawned from main.go coordinate using a WaitGroup.
 	// This provides a mechanism to allow the shutdownHandler goroutine
-	// to block until all the goroutines return. 
-	// If those goroutines spawn other goroutines then they are responsible for blocking 
+	// to block until all the goroutines return.
+	// If those goroutines spawn other goroutines then they are responsible for blocking
 	// and returning only when cancel() is called.
 	ctx, cancel := context.WithCancel(context.Background())
 	wg := sync.WaitGroup{}
@@ -270,7 +270,7 @@ func main() {
 	}()
 
 	if opts.healthzPort > 0 {
-		// It's not super easy to shutdown the HTTP server 
+		// It's not super easy to shutdown the HTTP server
 		// so don't attempt to stop it cleanly
 		go mustRunHealthz()
 	}
@@ -317,8 +317,8 @@ func main() {
 		go network.SetupAndEnsureIPTables(network.MasqRules(config.Network, bn.Lease()), opts.iptablesResyncSeconds)
 	}
 
-	// Always enables forwarding rules. 
-	// This is needed for Docker versions >1.13 
+	// Always enables forwarding rules.
+	// This is needed for Docker versions >1.13
 	// (https://docs.docker.com/engine/userguide/networking/default_network/container-communication/#container-communication-between-hosts)
 	// In Docker 1.12 and earlier, the default FORWARD chain policy was ACCEPT.
 	// In Docker 1.13 and later, Docker sets the default policy of the FORWARD chain to DROP.
@@ -335,7 +335,7 @@ func main() {
 		log.Infof("Wrote subnet file to %s", opts.subnetFile)
 	}
 
-	// Start "Running" the backend network. 
+	// Start "Running" the backend network.
 	// This will block until the context is done so run in another goroutine.
 	log.Info("Running backend.")
 	wg.Add(1)
@@ -560,7 +560,7 @@ func LookupExtIface(ifname string, ifregex string) (*backend.ExternalInterface, 
 	if iface.MTU == 0 {
 		return nil, fmt.Errorf("failed to determine MTU for %s interface", ifaceAddr)
 	}
-	// 这是当前节点对外暴露的地址? 就是说, 其他节点会通过这个地址访问此节点, 
+	// 这是当前节点对外暴露的地址? 就是说, 其他节点会通过这个地址访问此节点,
 	// 如不指定则使用与iface接口的地址.
 	var extAddr net.IP
 

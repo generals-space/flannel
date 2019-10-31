@@ -112,7 +112,8 @@ func ensureLink(vxlan *netlink.Vxlan) (*netlink.Vxlan, error) {
 
 // Configure 为 flannel.x 设备添加IP地址, 并启动.
 // ipn 为 192.168.3.0(没错, 就是网络号), 且 dev 的网段前缀为 32, 
-// 最终 flannel.x 的地址将为 292.168.3.0/32
+// 最终 flannel.x 的地址将为 192.168.3.0/32
+// caller: vxlan.go -> RegisterNetwork()
 func (dev *vxlanDevice) Configure(ipn ip.IP4Net) error {
 	if err := ip.EnsureV4AddressOnLink(ipn, dev.link); err != nil {
 		return fmt.Errorf("failed to ensure address of interface %s: %s", dev.link.Attrs().Name, err)

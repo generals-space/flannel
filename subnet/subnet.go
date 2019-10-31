@@ -34,14 +34,18 @@ var (
 )
 
 type LeaseAttrs struct {
-	PublicIP    ip.IP4			// 一般为所在node的IP地址, 如 192.168.7.51
+	// 一般为所在node的IP地址, 如 192.168.7.51
+	PublicIP ip.IP4
+	// 所选的网络模型, 如: vxlan, udp 等.
 	BackendType string          `json:",omitempty"`
 	BackendData json.RawMessage `json:",omitempty"`
 }
 
 type Lease struct {
-	Subnet     ip.IP4Net // 当前所在node分到的子网网段, 如 	192.168.9.0/24
+	// 当前 flannel 服务所在node分到的子网网段, 如 192.168.9.0/24
+	Subnet     ip.IP4Net
 	Attrs      LeaseAttrs
+	// 租约过期时间, 一般是24小时. 不过在 kuber subnet manager 中貌似是没用的.
 	Expiration time.Time
 
 	Asof uint64
@@ -119,14 +123,16 @@ func MakeSubnetKey(sn ip.IP4Net) string {
 }
 
 // Manager subnet manager
-// 有两种实现: 
-//  * LocalManager: 直接连接 etcd 配置 subnet 
+// 有两种实现:
+//  * LocalManager: 直接连接 etcd 配置 subnet
 //  * KubeSubnetManager: 连接 apiserver 获取节点和网络配置信息
+// 注意: 这里的 Manager 接口与 backend/manager.go 中的 Manager 接口不同.
 type Manager interface {
 	GetNetworkConfig(ctx context.Context) (*Config, error)
 	AcquireLease(ctx context.Context, attrs *LeaseAttrs) (*Lease, error)
 	// RenewLease LocalManager 的实现是刷新 etcd 中 lease 键的TTL, 相当于续约.
-	// kuber subnet manager 没有实现这个方法.
+	// kuber subnet manager 没有实现这个方法
+	// 所以 kuber 模式下, Lease.Expiration 是没什么用的???.
 	RenewLease(ctx context.Context, lease *Lease) error
 	WatchLease(ctx context.Context, sn ip.IP4Net, cursor interface{}) (LeaseWatchResult, error)
 	WatchLeases(ctx context.Context, cursor interface{}) (LeaseWatchResult, error)
