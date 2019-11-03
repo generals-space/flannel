@@ -85,9 +85,11 @@ type CmdLineOpts struct {
 	kubeApiUrl             string
 	kubeAnnotationPrefix   string
 	kubeConfigFile         string
-	iface                  flagSlice // 192.168.1.1这样的出口ip
+	// 192.168.1.1这样的出口ip
+	iface                  flagSlice 
 	ifaceRegex             flagSlice
 	ipMasq                 bool
+	// /run/flannel/subnet.env
 	subnetFile             string
 	subnetDir              string
 	publicIP               string
@@ -98,6 +100,7 @@ type CmdLineOpts struct {
 	charonViciUri          string
 	iptablesResyncSeconds  int
 	iptablesForwardRules   bool
+	// /etc/kube-flannel/net-conf.json
 	netConfPath            string
 }
 
@@ -184,6 +187,8 @@ func newSubnetManager() (subnet.Manager, error) {
 }
 
 func main() {
+	log.Infof("============ main() var opts: %+v", opts)
+
 	if opts.version {
 		fmt.Fprintln(os.Stderr, version.Version)
 		os.Exit(0)
@@ -201,6 +206,7 @@ func main() {
 	var extIface *backend.ExternalInterface
 	var err error
 	// Check the default interface only if no interfaces are specified
+	// 在 kuber 集群中启动时, 默认情况下这两个参数都是空数组, 所以会运行到第一个if块中.
 	if len(opts.iface) == 0 && len(opts.ifaceRegex) == 0 {
 		extIface, err = LookupExtIface("", "")
 		if err != nil {
@@ -304,9 +310,12 @@ func main() {
 		wg.Wait()
 		os.Exit(1)
 	}
+	// 上面的部分是构建不同网络模型所需的必要步骤, 下面是对于 iptables 的修改.
+	// 可以看出来来 iptables 规则与网络模型的构建是独立的.
 
-	// Set up ipMasq if needed
+	// 在 flannel 的 kuber 部署文件中, 指定了 --ip-masq 启动参数, 所以这个值是 true.
 	if opts.ipMasq {
+		// 在 setup 之前先 recycle 一遍.
 		if err = recycleIPTables(config.Network, bn.Lease()); err != nil {
 			log.Errorf("Failed to recycle IPTables rules, %v", err)
 			cancel()
@@ -363,8 +372,11 @@ func main() {
 	os.Exit(0)
 }
 
+// caller: main()
 func recycleIPTables(nw ip.IP4Net, lease *subnet.Lease) error {
+	// network 是在 kubeadm.conf 中配置的, 整个网络的范围.
 	prevNetwork := ReadCIDRFromSubnetFile(opts.subnetFile, "FLANNEL_NETWORK")
+	// subnet 则是当前节点, flannel 划分到的子网范围.
 	prevSubnet := ReadCIDRFromSubnetFile(opts.subnetFile, "FLANNEL_SUBNET")
 	// recycle iptables rules only when network configured or subnet leased is not equal to current one.
 	if prevNetwork != nw && prevSubnet != lease.Subnet {
@@ -469,6 +481,8 @@ func MonitorLease(ctx context.Context, sm subnet.Manager, bn backend.Network, wg
 // LookupExtIface ...
 // ifname: 其实是点分十进制IP字符串...叫ifname真是太失真了
 // 返回接口对象, 该接口的地址, 以及对外暴露的地址.
+// 在 kuber 集群中启动时, 默认情况下这两个参数都是空数组.
+// 所以会调用 GetDefaultGatewayIface() 的函数.
 func LookupExtIface(ifname string, ifregex string) (*backend.ExternalInterface, error) {
 	var iface *net.Interface
 	var ifaceAddr net.IP
@@ -543,12 +557,14 @@ func LookupExtIface(ifname string, ifregex string) (*backend.ExternalInterface, 
 		}
 	} else {
 		log.Info("Determining IP address of default interface")
+		// 这里得到的 iface 是宿主机上默认路由所使用的接口对象.
 		if iface, err = ip.GetDefaultGatewayIface(); err != nil {
 			return nil, fmt.Errorf("failed to get default interface: %s", err)
 		}
 	}
 
 	if ifaceAddr == nil {
+		// 获取 iface 接口上的 IP 地址.
 		ifaceAddr, err = ip.GetIfaceIP4Addr(iface)
 		if err != nil {
 			return nil, fmt.Errorf("failed to find IPv4 address for interface %s", iface.Name)
@@ -584,6 +600,7 @@ func LookupExtIface(ifname string, ifregex string) (*backend.ExternalInterface, 
 	}, nil
 }
 
+// WriteSubnetFile ...
 func WriteSubnetFile(path string, nw ip.IP4Net, ipMasq bool, bn backend.Network) error {
 	dir, name := filepath.Split(path)
 	os.MkdirAll(dir, 0755)

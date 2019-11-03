@@ -17,7 +17,7 @@ import (
 // backend/manager.go -> manager struct{} 结构的 extIface 成员,
 // 各网络模型实现的 Backend 对象的 exIface 成员,
 // 都是这个类型.
-// IfaceAddr与ExtAddr, 我所见过的情况中, ta俩的值都是相同的.
+// IfaceAddr 与 ExtAddr, 我所见过的情况中, ta俩的值都是相同的.
 // 应该是 IfaceAddr 表示节点本身使用的地址, 
 // 而 ExtAddr 是对于其他节点来说的地址吧, ??? 
 // 与 etcd 集群中的 `advertise-client-urls` 类似.
@@ -49,4 +49,5 @@ type Network interface {
 	Run(ctx context.Context)
 }
 
+// BackendCtor 即是各 Backend 组件的 New() 构造函数.
 type BackendCtor func(sm subnet.Manager, ei *ExternalInterface) (Backend, error)

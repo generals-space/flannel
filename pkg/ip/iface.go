@@ -88,14 +88,22 @@ func GetIfaceIP4AddrMatch(iface *net.Interface, matchAddr net.IP) error {
 	return errors.New("No IPv4 address found for given interface")
 }
 
+// GetDefaultGatewayIface ...
+// caller: main.go -> LookupExtIface()
+// 在 flannel 的启动参数/配置文件中都没有指定要使用哪一个网络接口时, 就调用了此函数.
+// 遍历当前主机的路由列表, 找到其中的默认路由所使用的接口并返回.
 func GetDefaultGatewayIface() (*net.Interface, error) {
+	// 获取当前主机的路由列表.
 	routes, err := netlink.RouteList(nil, syscall.AF_INET)
 	if err != nil {
 		return nil, err
 	}
 
 	for _, route := range routes {
+		// dst 为 nil, 或是为 0.0.0.0/0 的, 其实就是默认路由.
 		if route.Dst == nil || route.Dst.String() == "0.0.0.0/0" {
+			// 这里的 LinkIndex 学名为接口索引, 使用 `ip link` 等命令的输出中, 
+			// 显示结果前面的数字就是各接口的索引值, lo 回环网卡为 1.
 			if route.LinkIndex <= 0 {
 				return nil, errors.New("Found default route but could not determine interface")
 			}
