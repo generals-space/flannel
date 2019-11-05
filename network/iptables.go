@@ -18,10 +18,12 @@ import (
 	"github.com/coreos/go-iptables/iptables"
 )
 
+// IPTables 这里为什么要声明接口呢? 直接使用 iptables 包中的数据结构及函数不可以吗???
 type IPTables interface {
 	AppendUnique(table string, chain string, rulespec ...string) error
 	Delete(table string, chain string, rulespec ...string) error
 	Exists(table string, chain string, rulespec ...string) (bool, error)
+	List(table, chain string) ([]string, error)
 }
 
 type IPTablesRule struct {
@@ -42,50 +44,50 @@ func MasqRules(ipn ip.IP4Net, lease *subnet.Lease) []IPTablesRule {
 	// 两种情况只有两处不同, 区别只在于在规则末尾追加了 --random-fully 选项.
 	if supports_random_fully {
 		return []IPTablesRule{
-			// This rule makes sure we don't NAT traffic within overlay network 
+			// This rule makes sure we don't NAT traffic within overlay network
 			// (e.g. coming out of docker0)
 			{"nat", "POSTROUTING", []string{"-s", n, "-d", n, "-j", "RETURN"}},
 			// NAT if it's not multicast traffic
 			{"nat", "POSTROUTING", []string{
-					"-s", n, "!", "-d", "224.0.0.0/4", 
-					"-j", "MASQUERADE", "--random-fully",
-				},
+				"-s", n, "!", "-d", "224.0.0.0/4",
+				"-j", "MASQUERADE", "--random-fully",
 			},
-			// Prevent performing Masquerade on external traffic 
+			},
+			// Prevent performing Masquerade on external traffic
 			// which arrives from a Node that owns the container/pod IP address
 			{"nat", "POSTROUTING", []string{
-					"!", "-s", n, "-d", sn, "-j", "RETURN",
-				},
+				"!", "-s", n, "-d", sn, "-j", "RETURN",
+			},
 			},
 			// Masquerade anything headed towards flannel from the host
 			{"nat", "POSTROUTING", []string{
-					"!", "-s", n, "-d", n, 
-					"-j", "MASQUERADE", "--random-fully",
-				},
+				"!", "-s", n, "-d", n,
+				"-j", "MASQUERADE", "--random-fully",
+			},
 			},
 		}
 	} else {
 		return []IPTablesRule{
-			// This rule makes sure we don't NAT traffic within overlay network 
+			// This rule makes sure we don't NAT traffic within overlay network
 			// (e.g. coming out of docker0)
 			{"nat", "POSTROUTING", []string{"-s", n, "-d", n, "-j", "RETURN"}},
 			// NAT if it's not multicast traffic
 			{"nat", "POSTROUTING", []string{
-					"-s", n, "!", "-d", "224.0.0.0/4", 
-					"-j", "MASQUERADE",
-				},
+				"-s", n, "!", "-d", "224.0.0.0/4",
+				"-j", "MASQUERADE",
 			},
-			// Prevent performing Masquerade on external traffic 
+			},
+			// Prevent performing Masquerade on external traffic
 			// which arrives from a Node that owns the container/pod IP address
 			{"nat", "POSTROUTING", []string{
-					"!", "-s", n, "-d", sn, "-j", "RETURN",
-				},
+				"!", "-s", n, "-d", sn, "-j", "RETURN",
+			},
 			},
 			// Masquerade anything headed towards flannel from the host
 			{"nat", "POSTROUTING", []string{
-					"!", "-s", n, "-d", n, 
-					"-j", "MASQUERADE",
-				},
+				"!", "-s", n, "-d", n,
+				"-j", "MASQUERADE",
+			},
 			},
 		}
 	}
@@ -95,8 +97,10 @@ func MasqRules(ipn ip.IP4Net, lease *subnet.Lease) []IPTablesRule {
 // caller: main.go -> main()
 func ForwardRules(flannelNetwork string) []IPTablesRule {
 	return []IPTablesRule{
-		// These rules allow traffic to be forwarded 
+		// These rules allow traffic to be forwarded
 		// if it is to or from the flannel network range.
+		// 注意: iptables 默认的那个表就是 filter 表, 另外两个是 nat 和 mangle.
+		// 所以下面两条规则就是允许/接受 "来自或去向 flannel 网络(即各容器所在的子网)的数据包".
 		{"filter", "FORWARD", []string{"-s", flannelNetwork, "-j", "ACCEPT"}},
 		{"filter", "FORWARD", []string{"-d", flannelNetwork, "-j", "ACCEPT"}},
 	}
@@ -127,7 +131,6 @@ func ipTablesRulesExist(ipt IPTables, rules []IPTablesRule) (bool, error) {
 func SetupAndEnsureIPTables(rules []IPTablesRule, resyncPeriod int) {
 	ipt, err := iptables.New()
 	if err != nil {
-		// if we can't find iptables, give up and return
 		log.Errorf("Failed to setup IPTables. iptables binary was not found: %v", err)
 		return
 	}
@@ -151,7 +154,6 @@ func SetupAndEnsureIPTables(rules []IPTablesRule, resyncPeriod int) {
 func DeleteIPTables(rules []IPTablesRule) error {
 	ipt, err := iptables.New()
 	if err != nil {
-		// if we can't find iptables, give up and return
 		log.Errorf("Failed to setup IPTables. iptables binary was not found: %v", err)
 		return err
 	}
@@ -160,6 +162,7 @@ func DeleteIPTables(rules []IPTablesRule) error {
 }
 
 // ensureIPTables 确认 rules 数组中的规则存在.
+// caller: SetupAndEnsureIPTables()
 func ensureIPTables(ipt IPTables, rules []IPTablesRule) error {
 	exists, err := ipTablesRulesExist(ipt, rules)
 	if err != nil {
@@ -198,10 +201,10 @@ func setupIPTables(ipt IPTables, rules []IPTablesRule) error {
 func teardownIPTables(ipt IPTables, rules []IPTablesRule) {
 	for _, rule := range rules {
 		log.Info("Deleting iptables rule: ", strings.Join(rule.rulespec, " "))
-		// We ignore errors here because if there's an error 
-		// it's almost certainly because the rule doesn't exist, 
+		// We ignore errors here because if there's an error
+		// it's almost certainly because the rule doesn't exist,
 		// which is fine (we don't need to delete rules that don't exist)
-		// 这里可以忽略 Delete 的错误, 因为出现 error 时, 
+		// 这里可以忽略 Delete 的错误, 因为出现 error 时,
 		// 几乎可以确定就是因为目标规则不存在, 没关系.
 		ipt.Delete(rule.table, rule.chain, rule.rulespec...)
 	}
