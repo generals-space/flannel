@@ -336,7 +336,6 @@ func main() {
 	if opts.iptablesForwardRules {
 		log.Infof("Changing default FORWARD chain policy to ACCEPT")
 		rules := network.ForwardRules(config.Network.String())
-		log.Infof("=== The forward rules: %+v", rules)
 		go network.SetupAndEnsureIPTables(rules, opts.iptablesResyncSeconds)
 	}
 
@@ -361,6 +360,9 @@ func main() {
 
 	// Kube subnet mgr doesn't lease the subnet for this node.
 	// it just uses the podCidr that's already assigned.
+	// subnet manager类型为kube时, flannel并不是通过kube本身租借子网网段,
+	// 而是直接使用 /var/run/subnet.env 文件中定义的 /var/run/flannel/subnet.env,
+	// 即 kubeadm 初始配置文件中定义的 podSubnet 网段的某一子网(flannel启动时划分).
 	if !opts.kubeSubnetMgr {
 		err = MonitorLease(ctx, sm, bn, &wg)
 		if err == errInterrupted {
