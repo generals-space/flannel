@@ -1,13 +1,3 @@
-创建容器, 用于编译flannel, 同时用于Mac平台通过vscode远程开发.
-
-```
-docker run -it --name flannel -v ~/go/src/github.com/generals-space/flannel:/root/go/src/github.com/coreos/flannel registry.cn-hangzhou.aliyuncs.com/generals-space/golang-rc /bin/bash
-```
-
-然后vscode连接到正在运行的容器(需要`Remote - Containers`插件).
-
-> 注意: 连接成功后需要安装 vscode 的 GO 扩展, 这一步要在 vscode 中完成.
-
 ## 编译
 
 不用下载依赖, 都在vendor目录下.
