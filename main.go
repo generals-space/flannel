@@ -162,7 +162,7 @@ func usage() {
 	os.Exit(0)
 }
 
-// newSubnetManager 得到 subnetManager 对象
+// newSubnetManager 得到 subnetManager 对象, 用于监测集群中的pod变动, 数据来源可能是apiserver, 也可能是etcd本身.
 // 如果 opts.kubeSubnetMgr 为true, 则用 kube 提供的接口构建,
 // 否则手动通过 etcd 的各项参数手动创建.
 func newSubnetManager() (subnet.Manager, error) {
@@ -397,6 +397,7 @@ func recycleIPTables(nw ip.IP4Net, lease *subnet.Lease) error {
 	return nil
 }
 
+// caller: main()
 func shutdownHandler(ctx context.Context, sigs chan os.Signal, cancel context.CancelFunc) {
 	// Wait for the context do be Done or for the signal to come in to shutdown.
 	select {
@@ -607,6 +608,7 @@ func LookupExtIface(ifname string, ifregex string) (*backend.ExternalInterface, 
 }
 
 // WriteSubnetFile ...
+// caller: main()
 func WriteSubnetFile(path string, nw ip.IP4Net, ipMasq bool, bn backend.Network) error {
 	dir, name := filepath.Split(path)
 	os.MkdirAll(dir, 0755)

@@ -106,6 +106,7 @@ func deleteLease(l []Lease, i int) []Lease {
 	return l[:len(l)-1]
 }
 
+// WatchLeases 无限循环调用`ksm.WatchLeases()`, 无返回值.
 // WatchLeases performs a long term watch of the given network's subnet leases
 // and communicates addition/deletion events on receiver channel. 
 // It takes care of handling "fall-behind" logic 
