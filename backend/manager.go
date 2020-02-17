@@ -19,7 +19,7 @@ import (
 // 注意ta与 manager.active 成员的关系.
 var constructors = make(map[string]BackendCtor)
 
-// Manager ...
+// Manager 该接口的对象只有一个GetBackend的功能, 就是为了看看当前使用的是哪种网络模型.
 // 注意: 这里的 Manager 接口与 subnet/subnet.go 中的 Manager 接口不同.
 type Manager interface {
 	GetBackend(backendType string) (Backend, error)

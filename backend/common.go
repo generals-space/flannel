@@ -41,11 +41,12 @@ type Backend interface {
 	RegisterNetwork(ctx context.Context, wg sync.WaitGroup, config *subnet.Config) (Network, error)
 }
 
-// Network ...
-// SimpleNetwork与RouteNetwork都实现了Network接口
+// Network SimpleNetwork与RouteNetwork都实现了Network接口, 
+// 实际上各种网络模型(hostgw, ipip, vxlan)最终都会实现该接口, 不过一般是基于上面两种结构.
 type Network interface {
 	Lease() *subnet.Lease
 	MTU() int
+	// Run() 这是一个阻塞函数.
 	Run(ctx context.Context)
 }
 

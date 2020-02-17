@@ -29,13 +29,17 @@ import (
 )
 
 type vxlanDeviceAttrs struct {
-	vni       uint32
-	name      string
+	// vni 其实就类似于vlan的vlan id
+	vni  uint32
+	name string
+	// ip a命令输出中的设备索引值.
 	vtepIndex int
-	vtepAddr  net.IP
-	vtepPort  int
-	gbp       bool
-	learning  bool
+	// vxlan设备的ip地址
+	vtepAddr net.IP
+	// vxlan封装的udp目标端口
+	vtepPort int
+	gbp      bool
+	learning bool
 }
 
 type vxlanDevice struct {
@@ -43,6 +47,8 @@ type vxlanDevice struct {
 	directRouting bool
 }
 
+// newVXLANDevice 配置并创建vxlan设备
+// caller: RegisterNetwork()
 func newVXLANDevice(devAttrs *vxlanDeviceAttrs) (*vxlanDevice, error) {
 	// 貌似等同于 ip link add 系列的命令.
 	link := &netlink.Vxlan{
@@ -66,9 +72,12 @@ func newVXLANDevice(devAttrs *vxlanDeviceAttrs) (*vxlanDevice, error) {
 	}, nil
 }
 
+// ensureLink 创建目标vxlan设备
+// caller: newVXLANDevice()
 func ensureLink(vxlan *netlink.Vxlan) (*netlink.Vxlan, error) {
 	err := netlink.LinkAdd(vxlan)
 	if err == syscall.EEXIST {
+		// 如果目标设备已经存在, 但可能只是名字或索引相同, 还需要比较其他参数是否与目标配置相同.
 		// it's ok if the device already exists as long as config is similar
 		log.V(1).Infof("VXLAN device already exists")
 		existing, err := netlink.LinkByName(vxlan.Name)
@@ -82,6 +91,7 @@ func ensureLink(vxlan *netlink.Vxlan) (*netlink.Vxlan, error) {
 			return existing.(*netlink.Vxlan), nil
 		}
 
+		// 如果与期望不符, 则删掉重建.
 		// delete existing
 		log.Warningf("%q already exists with incompatable configuration: %v; recreating device", vxlan.Name, incompat)
 		if err = netlink.LinkDel(existing); err != nil {
@@ -95,7 +105,7 @@ func ensureLink(vxlan *netlink.Vxlan) (*netlink.Vxlan, error) {
 	} else if err != nil {
 		return nil, err
 	}
-
+	// 创建完成后
 	ifindex := vxlan.Index
 	link, err := netlink.LinkByIndex(vxlan.Index)
 	if err != nil {
@@ -111,7 +121,7 @@ func ensureLink(vxlan *netlink.Vxlan) (*netlink.Vxlan, error) {
 }
 
 // Configure 为 flannel.x 设备添加IP地址, 并启动.
-// ipn 为 192.168.3.0(没错, 就是网络号), 且 dev 的网段前缀为 32, 
+// ipn 为 192.168.3.0(没错, 就是网络号), 且 dev 的网段前缀为 32,
 // 最终 flannel.x 的地址将为 192.168.3.0/32
 // caller: vxlan.go -> RegisterNetwork()
 func (dev *vxlanDevice) Configure(ipn ip.IP4Net) error {
@@ -182,6 +192,9 @@ func (dev *vxlanDevice) DelARP(n neighbor) error {
 	})
 }
 
+// vxlanLinksIncompat 比较目标设备l1和已经存在的设备l2有什么不同,
+// 包括vxlanId, ip地址, udp端口, 组播地址等.
+// caller: ensureLink()
 func vxlanLinksIncompat(l1, l2 netlink.Link) string {
 	if l1.Type() != l2.Type() {
 		return fmt.Sprintf("link type: %v vs %v", l1.Type(), l2.Type())

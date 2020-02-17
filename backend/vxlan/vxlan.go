@@ -135,7 +135,11 @@ func newSubnetAttrs(publicIP net.IP, mac net.HardwareAddr) (*subnet.LeaseAttrs, 
 
 // RegisterNetwork ...
 // caller: main.go -> main()
-func (be *VXLANBackend) RegisterNetwork(ctx context.Context, wg sync.WaitGroup, config *subnet.Config) (backend.Network, error) {
+func (be *VXLANBackend) RegisterNetwork(
+	ctx context.Context, 
+	wg sync.WaitGroup, 
+	config *subnet.Config,
+) (backend.Network, error) {
 	// Parse our configuration
 	cfg := struct {
 		VNI           int

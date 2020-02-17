@@ -70,9 +70,9 @@ const (
 )
 
 type LeaseWatchResult struct {
-	// Either Events or Snapshot will be set.  If Events is empty, it means
-	// the cursor was out of range and Snapshot contains the current list
-	// of items, even if empty.
+	// Either Events or Snapshot will be set. 
+	// If Events is empty, it means the cursor was out of range and
+	// Snapshot contains the current list of items, even if empty.
 	Events   []Event     `json:"events"`
 	Snapshot []Lease     `json:"snapshot"`
 	Cursor   interface{} `json:"cursor"`

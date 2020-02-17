@@ -50,12 +50,13 @@ type kubeSubnetManager struct {
 	nodeStore      listers.NodeLister
 	nodeController cache.Controller
 	subnetConf     *subnet.Config
+	// events 监听node资源的CURD操作. 用于对新节点的网络配置, 以及旧节点的回收等操作.
 	events         chan subnet.Event
 }
 
 // NewSubnetManager ...
 // @prefix: annotation 前缀
-func NewSubnetManager(apiUrl, kubeconfig, prefix, netConfPath string) (subnet.Manager, error) {
+func NewSubnetManager(apiURL, kubeconfig, prefix, netConfPath string) (subnet.Manager, error) {
 	var cfg *rest.Config
 	var err error
 	// Try to build kubernetes config from a master url or a kubeconfig filepath. 
@@ -63,7 +64,7 @@ func NewSubnetManager(apiUrl, kubeconfig, prefix, netConfPath string) (subnet.Ma
 	// we fall back to inClusterConfig. 
 	// If inClusterConfig fails, we fallback to the default config.
 	// cfg 是配置对象.
-	cfg, err = clientcmd.BuildConfigFromFlags(apiUrl, kubeconfig)
+	cfg, err = clientcmd.BuildConfigFromFlags(apiURL, kubeconfig)
 	if err != nil {
 		return nil, fmt.Errorf("fail to create kubernetes config: %v", err)
 	}
@@ -78,6 +79,8 @@ func NewSubnetManager(apiUrl, kubeconfig, prefix, netConfPath string) (subnet.Ma
 	// If we're running as a pod then the POD_NAME and POD_NAMESPACE 
 	// will be populated and can be used to find the node name. 
 	// Otherwise, the environment variable NODE_NAME can be passed in.
+	// 获取当前cni pod所在的node的名称, 然后会通过clientset对象改写该node资源对象的`annotation`块.
+	// 而`NODE_NAME`环境变量在yaml部署文件中有声明, kuber集群会自动将其添加到pod的env中.
 	// 在 kube-flannel.yaml 部署文件中, 会将 POD_NAME/POD_NAMESPACE 信息
 	// 注入到正在运行的pod的环境变量中, 这样运行在其中程序可以通过env获取到.
 	nodeName := os.Getenv("NODE_NAME")
@@ -181,15 +184,15 @@ func newKubeSubnetManager(c clientset.Interface, sc *subnet.Config, nodeName, pr
 }
 
 func (ksm *kubeSubnetManager) handleAddLeaseEvent(et subnet.EventType, obj interface{}) {
-	n := obj.(*v1.Node)
+	node := obj.(*v1.Node)
 	// 注解中包含 kube-subnet-manager 键, 值为 true
-	if s, ok := n.Annotations[ksm.annotations.SubnetKubeManaged]; !ok || s != "true" {
+	if s, ok := node.Annotations[ksm.annotations.SubnetKubeManaged]; !ok || s != "true" {
 		return
 	}
 
-	l, err := ksm.nodeToLease(*n)
+	l, err := ksm.nodeToLease(*node)
 	if err != nil {
-		glog.Infof("Error turning node %q to lease: %v", n.ObjectMeta.Name, err)
+		glog.Infof("Error turning node %q to lease: %v", node.ObjectMeta.Name, err)
 		return
 	}
 	ksm.events <- subnet.Event{et, l}
@@ -299,6 +302,7 @@ func (ksm *kubeSubnetManager) AcquireLease(ctx context.Context, attrs *subnet.Le
 }
 
 // WatchLeases ...
+// cursor: 没有用到这个参数...
 // 监听 ksm.events 通道, node的增删改查会会将事件发送到这个通道.
 // 这是一个阻塞操作, 但并不是死循环, 而是一次性的.
 func (ksm *kubeSubnetManager) WatchLeases(ctx context.Context, cursor interface{}) (subnet.LeaseWatchResult, error) {

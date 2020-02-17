@@ -86,6 +86,8 @@ type vxlanLeaseAttrs struct {
 	VtepMAC hardwareAddr
 }
 
+// handleSubnetEvents 这里处理的是node节点的增删事件, 创建网络接口和iptables规则什么的.
+// caller: nw.Run()
 func (nw *network) handleSubnetEvents(batch []subnet.Event) {
 	var err error
 	for _, event := range batch {
