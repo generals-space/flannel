@@ -32,7 +32,7 @@ type IPTablesRule struct {
 	rulespec []string
 }
 
-// MasqRules 构建 masquerade 形式的 iptables 规则数组并返回.
+// MasqRules 生成并返回nat表规则(masquerade操作), 貌似全都是`POSTROUTING`链规则.
 func MasqRules(ipn ip.IP4Net, lease *subnet.Lease) []IPTablesRule {
 	n := ipn.String()
 	sn := lease.Subnet.String()

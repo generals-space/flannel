@@ -313,6 +313,8 @@ func main() {
 	// 上面的部分是构建不同网络模型所需的必要步骤, 下面是对于 iptables 的修改.
 	// 可以看出来来 iptables 规则与网络模型的构建是独立的.
 
+	////////////////////////////////////////////// iptables start
+	// 主要分为 network.MasqRules() 和 network.ForwardRules() 两个.
 	// 在 flannel 的 kuber 部署文件中, 指定了 --ip-masq 启动参数, 所以这个值是 true.
 	if opts.ipMasq {
 		// 在 setup 之前先 recycle 一遍.
@@ -333,11 +335,13 @@ func main() {
 	// (https://docs.docker.com/engine/userguide/networking/default_network/container-communication/#container-communication-between-hosts)
 	// In Docker 1.12 and earlier, the default FORWARD chain policy was ACCEPT.
 	// In Docker 1.13 and later, Docker sets the default policy of the FORWARD chain to DROP.
+	// 这个参数默认即为true
 	if opts.iptablesForwardRules {
 		log.Infof("Changing default FORWARD chain policy to ACCEPT")
 		rules := network.ForwardRules(config.Network.String())
 		go network.SetupAndEnsureIPTables(rules, opts.iptablesResyncSeconds)
 	}
+	////////////////////////////////////////////// iptables end
 
 	if err := WriteSubnetFile(opts.subnetFile, config.Network, opts.ipMasq, bn); err != nil {
 		// Continue, even though it failed.
