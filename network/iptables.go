@@ -33,9 +33,13 @@ type IPTablesRule struct {
 }
 
 // MasqRules 生成并返回nat表规则(masquerade操作), 貌似全都是`POSTROUTING`链规则.
-func MasqRules(ipn ip.IP4Net, lease *subnet.Lease) []IPTablesRule {
-	n := ipn.String()
-	sn := lease.Subnet.String()
+/*
+-t nat -A POSTROUTING -s 大子网/16 -d 大子网/16 -j RETURN
+-t nat -A POSTROUTING -s 大子网/16 ! -d 224.0.0.0/4 -j MASQUERADE
+-t nat -A POSTROUTING ! -s 大子网/16 -d 小子网/24 -j RETURN
+-t nat -A POSTROUTING ! -s 大子网/16 -d 大子网/16 -j MASQUERADE
+*/
+func MasqRules(flannelNetwork, subNetwork string) []IPTablesRule {
 	supports_random_fully := false
 	ipt, err := iptables.New()
 	if err == nil {
@@ -46,22 +50,26 @@ func MasqRules(ipn ip.IP4Net, lease *subnet.Lease) []IPTablesRule {
 		return []IPTablesRule{
 			// This rule makes sure we don't NAT traffic within overlay network
 			// (e.g. coming out of docker0)
-			{"nat", "POSTROUTING", []string{"-s", n, "-d", n, "-j", "RETURN"}},
+			{"nat", "POSTROUTING", []string{
+				"-s", flannelNetwork, "-d", flannelNetwork, 
+				"-j", "RETURN",
+			},
+			},
 			// NAT if it's not multicast traffic
 			{"nat", "POSTROUTING", []string{
-				"-s", n, "!", "-d", "224.0.0.0/4",
+				"-s", flannelNetwork, "!", "-d", "224.0.0.0/4",
 				"-j", "MASQUERADE", "--random-fully",
 			},
 			},
 			// Prevent performing Masquerade on external traffic
 			// which arrives from a Node that owns the container/pod IP address
 			{"nat", "POSTROUTING", []string{
-				"!", "-s", n, "-d", sn, "-j", "RETURN",
+				"!", "-s", flannelNetwork, "-d", subNetwork, "-j", "RETURN",
 			},
 			},
 			// Masquerade anything headed towards flannel from the host
 			{"nat", "POSTROUTING", []string{
-				"!", "-s", n, "-d", n,
+				"!", "-s", flannelNetwork, "-d", flannelNetwork,
 				"-j", "MASQUERADE", "--random-fully",
 			},
 			},
@@ -70,22 +78,36 @@ func MasqRules(ipn ip.IP4Net, lease *subnet.Lease) []IPTablesRule {
 		return []IPTablesRule{
 			// This rule makes sure we don't NAT traffic within overlay network
 			// (e.g. coming out of docker0)
-			{"nat", "POSTROUTING", []string{"-s", n, "-d", n, "-j", "RETURN"}},
-			// NAT if it's not multicast traffic
+			// 大子网之间, 即Pod之间的通信, 不需要进行NAT转换.
 			{"nat", "POSTROUTING", []string{
-				"-s", n, "!", "-d", "224.0.0.0/4",
+				"-s", flannelNetwork, "-d", flannelNetwork, 
+				"-j", "RETURN",
+			},
+			},
+			// NAT if it's not multicast traffic
+			// 从大子网内, 即从Pod内部发出的请求, 而目标地址不是多播地址的请求.
+			// 多播的话其实仍然是Pod之间的通信, vxlan模型就需要用到多播协议.
+			// 那么只有可能是访问宿主机, 或是访问外网了, 对这样的请求, 需要MASQUERADE做SNAT转换.
+			{"nat", "POSTROUTING", []string{
+				"-s", flannelNetwork, "!", "-d", "224.0.0.0/4",
 				"-j", "MASQUERADE",
 			},
 			},
 			// Prevent performing Masquerade on external traffic
 			// which arrives from a Node that owns the container/pod IP address
+			// 来自外部网络的, 且目标地址是当前节点上小子网的请求, 不需要进行NAT.
+			// 由于外部网络不会知道Pod内部的IP地址(毕竟内网地址无法被路由), 
+			// 所以基本可以认为这是从宿主机节点发起的, 目标是本地上的Pod的请求.
 			{"nat", "POSTROUTING", []string{
-				"!", "-s", n, "-d", sn, "-j", "RETURN",
+				"!", "-s", flannelNetwork, "-d", subNetwork, "-j", "RETURN",
 			},
 			},
 			// Masquerade anything headed towards flannel from the host
+			// 来自外部网络的, 但目标地址是其他节点上的子网的请求, 
+			// 这种一般是从当前宿主机节点发起的, 目标地址是其他节点上的Pod的请求.
+			// 需要进行NAT的.
 			{"nat", "POSTROUTING", []string{
-				"!", "-s", n, "-d", n,
+				"!", "-s", flannelNetwork, "-d", flannelNetwork,
 				"-j", "MASQUERADE",
 			},
 			},
@@ -95,12 +117,18 @@ func MasqRules(ipn ip.IP4Net, lease *subnet.Lease) []IPTablesRule {
 
 // ForwardRules 构建 forward 形式的 iptables 规则数组并返回.
 // caller: main.go -> main()
+/*
+FORWARD 处于 PREROUTING 之后, POSTROUTEING 之前, 所以如果希望上面的NAT规则生效, 首先要保证流经 FORWARD 链的数据包被接受.
+-t fileter -A FORWARD -s 大子网/16 -j ACCEPT
+-t fileter -A FORWARD -d 大子网/16 -j ACCEPT
+*/
 func ForwardRules(flannelNetwork string) []IPTablesRule {
 	return []IPTablesRule{
 		// These rules allow traffic to be forwarded
 		// if it is to or from the flannel network range.
 		// 注意: iptables 默认的那个表就是 filter 表, 另外两个是 nat 和 mangle.
-		// 所以下面两条规则就是允许/接受 "来自或去向 flannel 网络(即各容器所在的子网)的数据包".
+		// 所以下面两条规则就是允许/接受 "来自或去向 flannel 网络(即各Pod所在的子网)的数据包".
+		// 本质上就是允许当前节点作为路由, 转发.
 		{"filter", "FORWARD", []string{"-s", flannelNetwork, "-j", "ACCEPT"}},
 		{"filter", "FORWARD", []string{"-d", flannelNetwork, "-j", "ACCEPT"}},
 	}

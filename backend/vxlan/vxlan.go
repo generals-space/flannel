@@ -156,7 +156,7 @@ func (be *VXLANBackend) RegisterNetwork(
 			return nil, fmt.Errorf("error decoding VXLAN backend config: %v", err)
 		}
 	}
-
+	// vetp 其实就指得是 vxlan 设备, index, addr, port等都是ta的属性.
 	devAttrs := vxlanDeviceAttrs{
 		vni:       uint32(cfg.VNI),
 		name:      fmt.Sprintf("flannel.%v", cfg.VNI),

@@ -189,6 +189,7 @@ func newSubnetManager() (subnet.Manager, error) {
 func main() {
 	log.Infof("============ main() var opts: %+v", opts)
 
+	// step 1. 处理命令行参数
 	if opts.version {
 		fmt.Fprintln(os.Stderr, version.Version)
 		os.Exit(0)
@@ -202,7 +203,8 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Work out which interface to use
+	// step 2. 找到要使用的网卡, 之后在创建网络模型时, bridge, vxlan设备等都需要基于此网卡.
+	// 其实就是集群IP所在的网卡, 这样才能完成通信.
 	var extIface *backend.ExternalInterface
 	var err error
 	// Check the default interface only if no interfaces are specified
@@ -247,6 +249,7 @@ func main() {
 		}
 	}
 
+	// step 3. 创建 SubnetManager 
 	sm, err := newSubnetManager()
 	if err != nil {
 		log.Error("Failed to create SubnetManager: ", err)
@@ -255,6 +258,7 @@ func main() {
 	log.Infof("Created subnet manager: %s", sm.Name())
 
 	// Register for SIGINT and SIGTERM
+	// step 4. 注册退出处理函数, 使用WaitGroup而不是channel完成. 
 	log.Info("Installing signal handlers")
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, os.Interrupt, syscall.SIGTERM)
@@ -281,6 +285,7 @@ func main() {
 		go mustRunHealthz()
 	}
 
+	// step 5. 
 	// Fetch the network config (i.e. what backend to use etc..).
 	// config 子网网段配置
 	config, err := getConfig(ctx, sm)
@@ -289,6 +294,9 @@ func main() {
 		os.Exit(0)
 	}
 
+	// step 6. 获取配置中的网络模型, 然后调用 RegisterNetwork 开始部署网络.
+	// 这里获取 backend 的方式比较巧妙, 是让所有 backend 都按照名称注册自己, 
+	// 然后 GetBackend() 可以得到目标 backend 对象.
 	// Create a backend manager then use it to create the backend
 	// and register the network with it.
 	bm := backend.NewManager(ctx, sm, extIface)
@@ -314,7 +322,11 @@ func main() {
 	// 可以看出来来 iptables 规则与网络模型的构建是独立的.
 
 	////////////////////////////////////////////// iptables start
+	// step 7. 添加 iptables 规则.
 	// 主要分为 network.MasqRules() 和 network.ForwardRules() 两个.
+	// 一个操作nat表, 另一个操作filter表.
+	// nat部分
+	// 
 	// 在 flannel 的 kuber 部署文件中, 指定了 --ip-masq 启动参数, 所以这个值是 true.
 	if opts.ipMasq {
 		// 在 setup 之前先 recycle 一遍.
@@ -325,7 +337,7 @@ func main() {
 			os.Exit(1)
 		}
 		log.Infof("Setting up masking rules")
-		rules := network.MasqRules(config.Network, bn.Lease())
+		rules := network.MasqRules(config.Network.String(), bn.Lease().Subnet.String())
 		log.Infof("=== The masking rules: %+v", rules)
 		go network.SetupAndEnsureIPTables(rules, opts.iptablesResyncSeconds)
 	}
@@ -417,7 +429,7 @@ func shutdownHandler(ctx context.Context, sigs chan os.Signal, cancel context.Ca
 	signal.Stop(sigs)
 }
 
-// getConfig 从 subnet manager 中获取 subnet 子网网段配置
+// getConfig 从 subnet manager 中获取 subnet 子网网段配置(setup集群时配置的, 掩码位为16的大子网)
 func getConfig(ctx context.Context, sm subnet.Manager) (*subnet.Config, error) {
 	// Retry every second until it succeeds
 	for {

@@ -13,7 +13,7 @@ import (
 	"github.com/coreos/flannel/subnet"
 )
 
-// ExternalInterface ...
+// ExternalInterface 对外通信的接口, 应该指的是集群IP所在的接口, 一般是eth0主网卡.
 // backend/manager.go -> manager struct{} 结构的 extIface 成员,
 // 各网络模型实现的 Backend 对象的 exIface 成员,
 // 都是这个类型.

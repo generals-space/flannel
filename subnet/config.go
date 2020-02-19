@@ -22,7 +22,7 @@ import (
 	"github.com/coreos/flannel/pkg/ip"
 )
 
-// Config 全局子网网段配置,
+// Config 全局子网网段配置(掩码位为16),
 // 包括网络模型名称和此模型下的特殊配置.
 type Config struct {
 	Network   ip.IP4Net
